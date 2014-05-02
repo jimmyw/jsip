@@ -17,6 +17,13 @@ PPP.DevStates = {
   PDDATA:6        /* Process data byte. */
 };
 PPP.prototype.protocols = {};
+PPP.prototype.init = function() {
+  for (var i = 0; i < this.protocols.length; i++) {
+    this.protocols[i].init(this);
+  }
+}
+
+
 PPP.prototype.decode = function(buffer) {
   var decoded = new Uint8Array(buffer.length);
   j = 0;
