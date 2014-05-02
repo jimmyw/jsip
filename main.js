@@ -8,8 +8,7 @@ window.onload = function() {
   ws.binaryType = 'arraybuffer';
   ws.onmessage = function (msg) {
     var buffer = new Uint8Array(msg.data);
-    if(buffer[0] == PPP_FLAG && buffer[buffer.length-1] == PPP_FLAG)
-      ppp.parse_ppp(buffer.subarray(1, -1));
+    ppp.parse_ppp(buffer);
     //ws.send(evt.data); //loop data back
   };
 }

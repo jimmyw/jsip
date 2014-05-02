@@ -1,5 +1,5 @@
-function PPPFsm() {};
-PPPFsm.LinkStates = {
+function FSM() {};
+FSM.LinkStates = {
   LS_INITIAL : 0, /* Down, hasn't been opened */
   LS_STARTING: 1, /* Down, been opened */
   LS_CLOSED  : 2, /* Up, hasn't been opened */
@@ -11,7 +11,7 @@ PPPFsm.LinkStates = {
   LS_ACKSENT : 8, /* We've sent a Config Ack */
   LS_OPENED  : 9, /* Connection available */
 };
-PPPFsm.Codes = {
+FSM.Codes = {
   CONFREQ: 1, /* Configuration Request */
   CONFACK: 2, /* Configuration Ack */
   CONFNAK: 3, /* Configuration Nak */
@@ -20,20 +20,24 @@ PPPFsm.Codes = {
   TERMACK: 6, /* Termination Ack */
   CODEREJ: 7, /* Code Reject */
 };
-PPPFsm.prototype.state = PPPFsm.LinkStates.LS_INITIAL;
-PPPFsm.prototype.proto = {};
-PPPFsm.prototype.ConfRequest = function(id, fsm_data) {
-  console.log("state: " + byId(PPPFsm.LinkStates, this.state));
+FSM.prototype.state = FSM.LinkStates.LS_INITIAL;
+FSM.prototype.init = function(ppp, proto) {
+  self.ppp = ppp;
+  self.proto = proto;
+  console.log("Fsm init");
+}
+FSM.prototype.ConfRequest = function(id, fsm_data) {
+  console.log("state: " + byId(FSM.LinkStates, this.state));
   switch(this.state) {
-    case PPPFsm.LinkStates.LS_CLOSED:
+    case FSM.LinkStates.LS_CLOSED:
       /* Go away, we're closed */
       //fsm_sdata(f, TERMACK, id, NULL, 0);
       return;
-    case PPPFsm.LinkStates.LS_CLOSING:
-    case PPPFsm.LinkStates.LS_STOPPING:
+    case FSM.LinkStates.LS_CLOSING:
+    case FSM.LinkStates.LS_STOPPING:
       return;
 
-    case PPPFsm.LinkStates.LS_OPENED:
+    case FSM.LinkStates.LS_OPENED:
       /* Go down and restart negotiation */
       if(this.proto.down) {
         this.proto.down(this);  /* Inform upper layers */
@@ -41,15 +45,15 @@ PPPFsm.prototype.ConfRequest = function(id, fsm_data) {
       //fsm_sconfreq(f, 0);    /* Send initial Configure-Request */
       break;
 
-    case PPPFsm.LinkStates.LS_STOPPED:
+    case FSM.LinkStates.LS_STOPPED:
       /* Negotiation started by our peer */
       //fsm_sconfreq(f, 0);    /* Send initial Configure-Request */
-      this.state = PPPFsm.LinkStates.LS_REQSENT;
+      this.state = FSM.LinkStates.LS_REQSENT;
       break;
   }
 
 }
-PPPFsm.prototype.handlePackage = function(protocol, data) {
+FSM.prototype.input = function(data) {
 
   // Parse 4 byte header
   var code = data[0];
@@ -63,11 +67,8 @@ PPPFsm.prototype.handlePackage = function(protocol, data) {
   printBytes("package", data);
   printBytes("package data", data.subarray(4, 4 + len));
 
-  this.proto = PPPProtocols[protocol];
-  console.log("Protocol name:", this.proto.name); 
-
   switch (code) {
-    case PPPFsmCodes.CONFREQ:
+    case FSM.Codes.CONFREQ:
       this.ConfRequest(id, fsm_data);
       break;
   }

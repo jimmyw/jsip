@@ -41,6 +41,9 @@ class EchoWebSocket(websocket.WebSocketHandler):
               data = os.read(self._fd, 65536)
               if data:
                   self.write_message(data, binary=True)
+              else:
+                self.__cleanup()
+                self.close()
           elif event & tornado.ioloop.IOLoop.ERROR:
               print "ERROR: ", event
               self.__cleanup()
