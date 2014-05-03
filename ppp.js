@@ -1,5 +1,7 @@
 
 function PPP() {};
+
+/* Statics */
 PPP.Pack = {
   ALLSTATIONS: 0xff,
   UI: 0x03,
@@ -7,6 +9,8 @@ PPP.Pack = {
   ESCAPE: 0x7d,
   TRANS: 0x20
 };
+PPP.MRU = 1500;
+PPP.HDRLEN = 4;
 PPP.DevStates = {
   PDIDLE: 0,      /* Idle state - waiting. */
   PDSTART: 1,     /* Process start flag. */
@@ -16,84 +20,113 @@ PPP.DevStates = {
   PDPROTOCOL2: 5, /* Process protocol field 2. */
   PDDATA:6        /* Process data byte. */
 };
+PPP.ACCMMask = [0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80];
+
+/* Prototypes */
 PPP.prototype.protocols = {};
 PPP.prototype.init = function() {
-  for (var i = 0; i < this.protocols.length; i++) {
-    this.protocols[i].init(this);
+  console.log("PPP: init");
+
+  // Default on serial connections. (modem escape code stuff)
+  this.inACCM[15] = 0x60;
+  for (var p in this.protocols) {
+    this.protocols[p].init(this);
   }
 }
 
-
-PPP.prototype.decode = function(buffer) {
-  var decoded = new Uint8Array(buffer.length);
-  j = 0;
-  for (i=0; i < buffer.length; i++) {
-    if (buffer[i] == PPP.Pack.ESCAPE) {
-      i++;
-      decoded[j++] = buffer[i] ^ PPP.Pack.TRANS;
-    } else {
-      decoded[j++] = buffer[i];
-    }
-  }
-  return decoded.subarray(0, j);
-};
-
+PPP.prototype.inACCM = new Uint8Array(32);
+PPP.prototype.escaped = function(c) { return this.inACCM[c >> 3] & PPP.ACCMMask[c & 0x07]};
+PPP.prototype.inEscaped = false;
+PPP.prototype.state = PPP.DevStates.PDIDLE;
+PPP.prototype.protocol = 0;
+PPP.prototype.data = new Uint8Array(1500);
+PPP.prototype.data_pos = 0;
 PPP.prototype.parse_ppp = function(buffer) {
-  if(buffer[0] != PPP.Pack.FLAG && buffer[buffer.length-1] != PPP.Pack.FLAG)
-    return
-  buffer = buffer.subarray(1, -1);
   
   console.log("PPP: Got package len: ", buffer.length);
 
-  var decoded = this.decode(buffer);
-  var state = PPP.DevStates.PDIDLE;
-  var protocol = 0;
-
-  //printBytes("decoded", decoded);
-
-  var data = new Uint8Array(decoded.length);
-  var j = 0;
-  for (i=0; i < decoded.length; i++) {
-    var curChar = decoded[i];
-    //console.log("byte: ", curChar.toString(16), " state:", byId(PPP.DevStates, state));
-    switch(state) {
-      case PPP.DevStates.PDIDLE:
-        if (curChar != PPP.Pack.ALLSTATIONS) {
-          break;
-        }
-
-      case PPP.DevStates.PDSTART:
-      case PPP.DevStates.PDADDRESS:
-        if (curChar == PPP.Pack.ALLSTATIONS) {
-          state = PPP.DevStates.PDCONTROL;
-          break;
-        }
-      case PPP.DevStates.PDCONTROL:
-        if (curChar == PPP.Pack.UI) {
-          state = PPP.DevStates.PDPROTOCOL1;
-          break;
-        }
-      case PPP.DevStates.PDPROTOCOL1:
-          if (curChar & 1) {
-            protocol = curChar;
-            state = PPP.DevStates.PDDATA;
+  for (var i=0; i < buffer.length; i++) {
+    var curChar = buffer[i];
+    var escaped = this.escaped(curChar);
+    //console.log("byte: ", curChar.toString(16), " state:", byId(PPP.DevStates, this.state), " escaped: ", escaped, "in_escaped: ", this.inEscaped);
+    if (escaped) {
+      if (curChar == PPP.Pack.ESCAPE) {
+          this.inEscaped = true;
+      } else if (curChar == PPP.Pack.FLAG) {
+        if (this.state <= PPP.DevStates.PDADDRESS) {
+          /* ignore it */;
+        } else if (this.state < PPP.DevStates.PDDATA) {
+          console.log("Incomplete Package");
+        /* If the fcs is invalid, drop the packet. */
+        /*} else if (pcrx->inFCS != PPP_GOODFCS) {
+          console.log("Bad package");*/
+        } else {
+          // Trim ending 2 bytes (checksum)
+          //console.log("protocol: ", this.protocol, " data: " + this.data.subarray(0, this.data_pos-2));
+          if(this.protocol in this.protocols) {
+            this.proto = this.protocols[this.protocol];
+            this.proto.input(this.data.subarray(0, this.data_pos-2));
           } else {
-            protocol = curChar << 8;
-            state = PPP.DevStates.PDPROTOCOL2;
+            console.log("Unknown protocol ", this.protocol);
           }
-          break;
-      case PPP.DevStates.PDPROTOCOL2:
-          protocol |= curChar;
-          state = PPP.DevStates.PDDATA;
-          break;
-      case PPP.DevStates.PDDATA:
-          data[j++] = curChar;
-          break;
+          this.data_pos = 0;
+        }
+        this.state = PPP.DevStates.PDADDRESS;
+        this.inEscaped = false;
+      } else {
+        console.log("Drop char", curChar);
+      }
+    } else {
+      if (this.inEscaped) {
+        this.inEscaped = false;
+        curChar ^= PPP.Pack.TRANS;
+      }
+      switch(this.state) {
+        case PPP.DevStates.PDIDLE:
+          if (curChar != PPP.Pack.ALLSTATIONS) {
+            break;
+          }
+
+        /* Fall through */
+        case PPP.DevStates.PDSTART:
+          //this.inFCS = PPP.FCS.INITFCS;
+
+        /* Fall through */
+        case PPP.DevStates.PDADDRESS:
+          if (curChar == PPP.Pack.ALLSTATIONS) {
+            this.state = PPP.DevStates.PDCONTROL;
+            break;
+          }
+        /* Fall through */
+        case PPP.DevStates.PDCONTROL:
+          if (curChar == PPP.Pack.UI) {
+            this.state = PPP.DevStates.PDPROTOCOL1;
+            break;
+          }
+        /* Fall through */
+        case PPP.DevStates.PDPROTOCOL1:
+            if (curChar & 1) {
+              this.protocol = curChar;
+              this.state = PPP.DevStates.PDDATA;
+            } else {
+              this.protocol = curChar << 8;
+              this.state = PPP.DevStates.PDPROTOCOL2;
+            }
+            break;
+        case PPP.DevStates.PDPROTOCOL2:
+            this.protocol |= curChar;
+            this.state = PPP.DevStates.PDDATA;
+            break;
+        case PPP.DevStates.PDDATA:
+            this.data[this.data_pos++] = curChar;
+            break;
+      }
     }
   }
 
-  this.proto = this.protocols[protocol];
-  this.proto.input(data.subarray(0, j));
+}
+PPP.prototype.send = function(data) {
+  console.log("PPP: send is not implemented");
 }
 PPP.prototype.registerProtocol = function(proto) {
   this.protocols[proto.protocol_id] = new proto(this);

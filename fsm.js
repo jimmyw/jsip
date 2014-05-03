@@ -20,14 +20,40 @@ FSM.Codes = {
   TERMACK: 6, /* Termination Ack */
   CODEREJ: 7, /* Code Reject */
 };
+FSM.HEADERLEN = 4;
 FSM.prototype.state = FSM.LinkStates.LS_INITIAL;
 FSM.prototype.init = function(ppp, proto) {
-  self.ppp = ppp;
-  self.proto = proto;
-  console.log("Fsm init");
+  console.log("FSM: init");
+  this.ppp = ppp;
+  this.proto = proto;
+  this.peer_mru = PPP.MRU;
+}
+FSM.prototype.nakloops = 0;
+FSM.prototype.peer_mru = 0;
+FSM.prototype.sdata = function(code, id, fsm_data) {
+  var send_buf = new Uint8Array(this.peer_mru);
+  if (fsm_data.length > this.peer_mru) {
+    console.log("To big");
+    return;
+  }
+  var j = PPP.HDRLEN + FSM.HEADERLEN;
+  for (var i = 0; i < (PPP.HDRLEN + FSM.HEADERLEN); i++) {
+    send_buf[j++] = fsm_data[i];
+  }
+  var outlen = fsm_data.length + FSM.HEADERLEN;
+  send_buf[0] = PPP.Pack.ALLSTATIONS;
+  send_buf[1] = PPP.Pack.UI;
+  send_buf[2] = this.proto.protocol >> 8;
+  send_buf[3] = this.proto.protocol & 255;
+  send_buf[4] = code;
+  send_buf[5] = id;
+  send_buf[6] = outlen >> 8;
+  send_buf[7] = outlen & 255; 
+  this.ppp.send(send_buf.subarray(0, outlen));
 }
 FSM.prototype.ConfRequest = function(id, fsm_data) {
-  console.log("state: " + byId(FSM.LinkStates, this.state));
+  console.log("FSM: state: " + byId(FSM.LinkStates, this.state));
+  var code;
   switch(this.state) {
     case FSM.LinkStates.LS_CLOSED:
       /* Go away, we're closed */
@@ -51,6 +77,35 @@ FSM.prototype.ConfRequest = function(id, fsm_data) {
       this.state = FSM.LinkStates.LS_REQSENT;
       break;
   }
+ 
+ console.log("FSM: ", this.proto); 
+  if (this.proto.reqci) {
+    code = this.proto.reqci(fsm_data);
+  }
+  
+  /* send the Ack, Nak or Rej to the peer */
+  this.sdata(code, id, fsm_data);
+  
+  if (code == FSM.Codes.CONFACK) {
+    if (this.state == FSM.LinkStates.LS_ACKRCVD) {
+      //UNTIMEOUT(fsm_timeout, f);  /* Cancel timeout */
+      this.state = FSM.LinkStates.LS_OPENED;
+      if (this.proto.up) {
+        this.proto.up();  /* Inform upper layers */
+      }
+    } else {
+      this.state = FSM.LinkStates.LS_ACKSENT;
+    }
+    this.nakloops = 0;
+  } else {
+    /* we sent CONFACK or CONFREJ */
+    if (this.state != FSM.LinkStates.LS_ACKRCVD) {
+      this.state = FSM.LinkStates.LS_REQSENT;
+    }
+    if(code == FSM.Codes.CONFNAK ) {
+      ++this.nakloops;
+    }
+  }
 
 }
 FSM.prototype.input = function(data) {
@@ -58,14 +113,14 @@ FSM.prototype.input = function(data) {
   // Parse 4 byte header
   var code = data[0];
   var id = data[1];
-  var len = ((data[2] << 8) | data[3]) - 4;
-  var fsm_data = data.subarray(4, 4 + len);
+  var len = ((data[2] << 8) | data[3]) - FSM.HEADERLEN;
+  var fsm_data = data.subarray(FSM.HEADERLEN, FSM.HEADERLEN + len);
 
-  console.log("Code: " + code);
-  console.log("id: ", id);
-  console.log("len: ", len);
-  printBytes("package", data);
-  printBytes("package data", data.subarray(4, 4 + len));
+  console.log("FSM: Code: " + code);
+  console.log("FSM: id: ", id);
+  console.log("FSM: len: ", len);
+  printBytes("FSM: package", data);
+  printBytes("FSM: package data", fsm_data);
 
   switch (code) {
     case FSM.Codes.CONFREQ:

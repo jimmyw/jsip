@@ -9,7 +9,7 @@ function byId(e, k) {
 
 
 function printBytes(title, buffer) {
-  var s = title + "(" + buffer.length+ "): ";
+  var s = title + ": len(" + buffer.length+ ") ";
   for (i=0; i < buffer.length;i++)
     s += buffer[i].toString(16) + " ";
   console.log(s);

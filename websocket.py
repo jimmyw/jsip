@@ -24,7 +24,7 @@ class EchoWebSocket(websocket.WebSocketHandler):
         try:
             os.dup2(err, 2) # restore original stderr
             os.closerange(3, 1024)
-            os.execv('/usr/sbin/pppd', ['pppd', 'nodetach', 'nodeflate', 'local', 'nodefaultroute', 'debug', 'logfile', '/dev/stderr'])
+            os.execv('/usr/sbin/pppd', ['pppd', 'nodetach', 'nocrtscts', 'nodeflate', 'local', 'nodefaultroute', 'debug', 'logfile', '/dev/stderr'])
         except:
             os.write(2, traceback.format_exc())
         finally:
@@ -54,6 +54,10 @@ class EchoWebSocket(websocket.WebSocketHandler):
           print "err!", e
 
     def on_message(self, message):
+        sendst = "";
+        for x in range(len(message)):
+          sendst += message[x] + " "
+        print "Got %d '%s' type: '%s'" % (len(message), sendst, str(type(sendst)))
         os.write(self._fd, message)
 
     def on_close(self):
