@@ -10,8 +10,8 @@ window.onload = function() {
   ws.binaryType = 'arraybuffer';
   ws.onmessage = function (msg) {
     var buffer = new Uint8Array(msg.data);
-    ppp.send = function(data) {
-      printBytes("sent: ", data);
+    ppp.send_cb = function(data) {
+      printBytes("MAIN", data);
       ws.send(data);
     }
     ppp.parse_ppp(buffer);
