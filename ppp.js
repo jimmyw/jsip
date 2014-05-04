@@ -51,7 +51,8 @@ PPP.prototype.init = function() {
   this.outACCM[2] = 0xff;
   this.outACCM[3] = 0xff;
   for (var p in this.protocols) {
-    this.protocols[p].init(this);
+    if(this.protocols[p].init)
+      this.protocols[p].init(this);
   }
 }
 
@@ -85,8 +86,10 @@ PPP.prototype.recv = function(buffer) {
           //console.log("protocol: ", this.protocol, " data: " + this.data.subarray(0, this.data_pos-2));
           if(this.protocol in this.protocols) {
             this.proto = this.protocols[this.protocol];
-            this.proto.input(this.data.subarray(0, this.data_pos-2));
+            if(this.proto.input)
+              this.proto.input(this.data.subarray(0, this.data_pos-2));
           } else {
+            this.sprotrej(this.protocol);
             console.log("Unknown protocol ", this.protocol);
           }
           this.data_pos = 0;
@@ -144,6 +147,15 @@ PPP.prototype.recv = function(buffer) {
       }
       this.inFCS = PPP.FCS(this.inFCS, curChar);
     }
+  }
+}
+PPP.prototype.sprotrej = function(protocol){
+  var data = new Uint8Array(2);
+  data[0] = protocol >> 8;
+  data[1] = protocol & 0xff;
+  for (var p in this.protocols) {
+    if(this.protocols[p].sprotrej)
+      this.protocols[p].sprotrej(data);
   }
 }
 
