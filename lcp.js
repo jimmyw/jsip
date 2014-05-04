@@ -122,3 +122,33 @@ LCP.prototype.sprotrej = function(data) {
   this.fsm.sdata(LCP.PROTREJ, ++this.fsm.id, data); 
 }
 
+
+LCP.prototype.extcode = function(code, id, data) {
+  switch(code){
+    case LCP.PROTREJ:
+      //lcp_rprotrej(f, inp, len);
+      break;
+  
+    case LCP.ECHOREQ:
+      if (this.fsm.state != FSM.LinkStates.LS_OPENED) {
+        break;
+      }
+      console.log("LCP: Echo-Request, Rcvd id", id);
+      //TODO, support magic number. PUTLONG(lcp_gotoptions[f->unit].magicnumber, magp);
+      this.fsm.sdata(LCP.ECHOREP, id, data);
+      break;
+
+    case LCP.ECHOREP:
+      //lcp_received_echo_reply(f, id, inp, len);
+      break;
+
+    case LCP.DISCREQ:
+      break;
+
+    default:
+      return 0;
+  }
+  return 1;
+}
+
+

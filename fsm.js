@@ -311,7 +311,9 @@ FSM.prototype.input = function(data) {
     case FSM.Codes.TERMREQ:
       this.GotTremReq(id, fsm_data);
     default:
-      throw "Unhandeled code " + byId(FSM.Codes, code);
+      if(!this.proto.extcode || !this.proto.extcode(code, id, fsm_data))
+        this.sdata(FSM.Codes.CODEREJ, ++this.id, data);
+      break;
   }
 }
 
