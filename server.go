@@ -34,15 +34,19 @@ func (self *Server) NewSession() *Session {
 func hexdump(d []byte) string {
 	ret := ""
 	for x := range d {
-		ret += fmt.Sprintf("%.2x ", d[x])
+		if ret != "" {
+			ret += " "
+		}
+		ret += fmt.Sprintf("%.2x", d[x])
 	}
 	return ret
 }
 
 func (self *Session) startProc(closing chan string) {
 	var err error
-	self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "nodeflate", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
-	//self.cmd = exec.Command("./test.sh")
+	//self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "nomagic", "novj", "default-asyncmap", "nodeflate", "noaccomp", "nobsdcomp", "nopcomp", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
+	//self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "nomagic", "novj", "asyncmap", "0x000A0000", "nodeflate", "noaccomp", "nobsdcomp", "nopcomp", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
+	self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
 	if self.stdout, err = self.cmd.StdoutPipe(); err != nil {
 		log.Fatal("StdoutPipe error: ", err)
 	}
@@ -61,7 +65,7 @@ func (self *Session) startProc(closing chan string) {
 			if err != nil {
 				log.Fatal("StdErr read error: ", err)
 			}
-			log.Printf("pppd stderr output '%s'\n", line)
+			log.Printf("pppd stderr output  '%s'\n", line)
 		}
 	}()
 
@@ -101,7 +105,7 @@ func (self *Session) readLoop(closing chan string) {
 	var data []byte
 	var err error
 	for err = websocket.Message.Receive(self.ws, &data); err == nil; err = websocket.Message.Receive(self.ws, &data) {
-		log.Printf("Recived data from websocket: '%s'\n", hexdump(data))
+		log.Printf("Read byte from ws   '%v'\n", hexdump(data))
 		self.stdin.Write(data)
 	}
 	if err == io.EOF {

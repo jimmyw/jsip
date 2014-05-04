@@ -37,22 +37,24 @@ FSM.prototype.sdata = function(code, id, fsm_data) {
     return;
   }
   var j = PPP.HDRLEN + FSM.HEADERLEN;
-  for (var i = 0; i < (PPP.HDRLEN + FSM.HEADERLEN); i++) {
+  for (var i = 0; i < fsm_data.length; i++) {
     send_buf[j++] = fsm_data[i];
   }
   var outlen = fsm_data.length + FSM.HEADERLEN;
   send_buf[0] = PPP.Pack.ALLSTATIONS;
   send_buf[1] = PPP.Pack.UI;
-  send_buf[2] = this.proto.protocol >> 8;
-  send_buf[3] = this.proto.protocol & 255;
+  send_buf[2] = this.proto.protocol_id >> 8;
+  send_buf[3] = this.proto.protocol_id & 0xff;
   send_buf[4] = code;
   send_buf[5] = id;
   send_buf[6] = outlen >> 8;
-  send_buf[7] = outlen & 255; 
-  this.ppp.send(send_buf.subarray(0, outlen));
+  send_buf[7] = outlen & 0xff;
+  printBytes("FSM: sdata", send_buf.subarray(0, outlen + PPP.HDRLEN));
+  this.ppp.send(send_buf.subarray(0, outlen + PPP.HDRLEN));
 }
 FSM.prototype.ConfRequest = function(id, fsm_data) {
   console.log("FSM: state: " + byId(FSM.LinkStates, this.state));
+  printBytes("FSM: fsm_data", fsm_data);
   var code;
   switch(this.state) {
     case FSM.LinkStates.LS_CLOSED:
@@ -78,7 +80,7 @@ FSM.prototype.ConfRequest = function(id, fsm_data) {
       break;
   }
  
- console.log("FSM: ", this.proto); 
+ console.log("FSM: proto ", this.proto.name); 
   if (this.proto.reqci) {
     code = this.proto.reqci(fsm_data);
   }
@@ -114,8 +116,7 @@ FSM.prototype.input = function(data) {
   var code = data[0];
   var id = data[1];
   var len = ((data[2] << 8) | data[3]) - FSM.HEADERLEN;
-  var fsm_data = data.subarray(FSM.HEADERLEN, FSM.HEADERLEN + len);
-
+  var fsm_data = data.subarray(FSM.HEADERLEN, FSM.HEADERLEN + len); 
   console.log("FSM: Code: " + code);
   console.log("FSM: id: ", id);
   console.log("FSM: len: ", len);

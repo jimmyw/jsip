@@ -3,9 +3,9 @@ function Buffer() {}
 Buffer.prototype.buf = new Uint8Array(1500);
 Buffer.prototype.pos = 0;
 Buffer.prototype.pushByte = function(b) {this.buf[this.pos++] = b;}
-Buffer.prototype.get = function() {console.log(this.pos); return this.buf.subarray(0, this.pos);}
+Buffer.prototype.get = function() { return this.buf.subarray(0, this.pos);}
 Buffer.prototype.pushEscaped = function(b, accm) {
-  if (PPP.Escaped(b, accm)) {
+  if (accm && PPP.Escaped(b, accm)) {
     this.pushByte(PPP.Pack.ESCAPE);
     this.pushByte(b ^ PPP.Pack.TRANS);
   } else {
@@ -34,17 +34,24 @@ PPP.DevStates = {
   PDPROTOCOL2: 5, /* Process protocol field 2. */
   PDDATA:6        /* Process data byte. */
 };
-PPP.ACCMMask = [0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80];
-PPP.Escaped = function(c, accm) { return accm && (accm[c >> 3] & PPP.ACCMMask[c & 0x07])};
+PPP.ACCMMask = new Uint8Array([0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80]);
+PPP.Escaped = function(c, accm) {
+  return accm[c >> 3] & PPP.ACCMMask[c & 0x07]};
 
 /* Prototypes */
 PPP.prototype.protocols = {};
 PPP.prototype.init = function() {
   console.log("PPP: init");
 
-  // Default on serial connections. (modem escape code stuff)
+  // Default always escapae 0x7e, 0x7d
   this.inACCM[15] = 0x60;
   this.outACCM[15] = 0x60;
+
+  // Before LCP is set up, escape all ascii control bytes (0x00 - 0x1f)
+  this.outACCM[0] = 0xff;
+  this.outACCM[1] = 0xff;
+  this.outACCM[2] = 0xff;
+  this.outACCM[3] = 0xff;
   for (var p in this.protocols) {
     this.protocols[p].init(this);
   }
@@ -162,7 +169,8 @@ PPP.prototype.send = function(data) {
   this.send_cb(buf.get());
 }
 PPP.prototype.registerProtocol = function(proto) {
-  this.protocols[proto.protocol_id] = new proto(this);
+  var inst = new proto(this);
+  this.protocols[inst.protocol_id] = inst;
 }
 
 PPP.FCS = function(fcs, c) { return (fcs >> 8) ^ PPP.fcstab[(fcs ^ c) & 0xff]};
