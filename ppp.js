@@ -30,6 +30,21 @@ PPP.DevStates = {
   PDPROTOCOL2: 5, /* Process protocol field 2. */
   PDDATA:6        /* Process data byte. */
 };
+PPP.Packet = {
+  IP:          0x21,   /* Internet Protocol */
+  AT:          0x29,   /* AppleTalk Protocol */
+  VJC_COMP:    0x2d,   /* VJ compressed TCP */
+  VJC_UNCOMP:  0x2f,   /* VJ uncompressed TCP */
+  COMP:        0xfd,   /* compressed packet */
+  IPCP:        0x8021, /* IP Control Protocol */
+  ATCP:        0x8029, /* AppleTalk Control Protocol */
+  CCP:         0x80fd, /* Compression Control Protocol */
+  LCP:         0xc021, /* Link Control Protocol */
+  PAP:         0xc023, /* Password Authentication Protocol */
+  LQR:         0xc025, /* Link Quality Report protocol */
+  CHAP:        0xc223, /* Cryptographic Handshake Auth. Protocol */
+  CBCP:        0xc029  /* Callback Control Protocol */
+};
 PPP.ACCMMask = new Uint8Array([0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80]);
 PPP.Escaped = function(c, accm) {return accm[c >> 3] & PPP.ACCMMask[c & 0x07]};
 PPP.FCS = function(fcs, c) {return (fcs >> 8) ^ PPP.fcstab[(fcs ^ c) & 0xff]};
@@ -64,6 +79,22 @@ PPP.prototype.protocol = 0;
 PPP.prototype.data = new Uint8Array(1500);
 PPP.prototype.data_pos = 0;
 PPP.prototype.inFCS = PPP.INITFCS;
+PPP.prototype.delegate = function(protocol, data) {
+  switch (protocol) {
+    case PPP.Packet.IP:
+      this.on_ip(data);
+      return true;
+    default:
+      if(protocol in this.protocols) {
+        this.proto = this.protocols[protocol];
+        if(this.proto.input) {
+          this.proto.input(data);
+          return true;
+        }
+      }
+  }
+  return false;
+}
 PPP.prototype.recv = function(buffer) {
 
   for (var i=0; i < buffer.length; i++) {
@@ -83,12 +114,7 @@ PPP.prototype.recv = function(buffer) {
           console.log("Bad package, FCS missmatch");
         } else {
           // Trim ending 2 bytes (checksum)
-          //console.log("protocol: ", this.protocol, " data: " + this.data.subarray(0, this.data_pos-2));
-          if(this.protocol in this.protocols) {
-            this.proto = this.protocols[this.protocol];
-            if(this.proto.input)
-              this.proto.input(this.data.subarray(0, this.data_pos-2));
-          } else {
+          if(!this.delegate(this.protocol, this.data.subarray(0, this.data_pos-2))) {
             this.sprotrej(this.protocol);
             console.log("Unknown protocol ", this.protocol.toString(16));
           }

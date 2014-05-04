@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os/exec"
 	"time"
 )
 
 type Server struct {
+	last_ip net.IP
 }
 
 type Session struct {
@@ -20,14 +22,16 @@ type Session struct {
 	stdout io.ReadCloser
 	stderr io.ReadCloser
 	stdin  io.WriteCloser
+	ip     net.IP
 }
 
 func NewServer() *Server {
-	return &Server{}
+	return &Server{last_ip: net.IPv4(10, 0, 0, 2)}
 }
 
 func (self *Server) NewSession() *Session {
-	sess := &Session{}
+	sess := &Session{ip: self.last_ip}
+	self.last_ip[15] = self.last_ip[15] + 1
 	return sess
 }
 
@@ -44,7 +48,7 @@ func hexdump(d []byte) string {
 
 func (self *Session) startProc(closing chan string) {
 	var err error
-	self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "nomagic", "novj", "default-asyncmap", "nodeflate", "noaccomp", "nobsdcomp", "nopcomp", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr", "10.0.0.1:10.0.0.2")
+	self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "nomagic", "novj", "default-asyncmap", "nodeflate", "noaccomp", "nobsdcomp", "nopcomp", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr", fmt.Sprintf("10.0.0.1:%s", self.ip))
 	//self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "nomagic", "novj", "asyncmap", "0x000A0000", "nodeflate", "noaccomp", "nobsdcomp", "nopcomp", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
 	//self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
 	if self.stdout, err = self.cmd.StdoutPipe(); err != nil {

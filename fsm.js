@@ -188,9 +188,13 @@ FSM.prototype.GotConfREJ = function(code, id, data) {
     return;        /* Nope, toss... */
   }
 
-  var proc = (code == FSM.Codes.CONFNAK) ? this.proto.nakci: this.proto.rejci;
-  var ret;
-  if (!proc || !((ret = proc(data)))) {
+  var ret = 0;
+  if(code == FSM.Codes.CONFNAK) {
+    ret = this.proto.nakci(data);
+  } else {
+    ret = this.proto.rejci(data);
+  }
+  if (!ret) {
     /* Nak/reject is bad - ignore it */
     console.log("FSM " + this.proto.name + ": received bad ", byId(FSM.Codes, code)," (length ", data.length, ")\n");
     return;

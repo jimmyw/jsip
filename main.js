@@ -5,6 +5,10 @@ window.onload = function() {
   ppp.registerProtocol(LCP);
   ppp.registerProtocol(IPCP);
   ppp.init();
+  ppp.on_ip = function(data) {
+      console.log("IP PACKET DATA len:", data.length);
+      printBytes("MAIN: ip", data);
+  }
 
   var ws = new WebSocket("ws://127.0.0.1:8080/websocket");
   ws.binaryType = 'arraybuffer';
