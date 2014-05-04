@@ -24,6 +24,11 @@ LCP.LinkPhase = {
   NETWORK: 5,
   TERMINATE: 6
 };
+LCP.PROTREJ =  8;  /* Protocol Reject */
+LCP.ECHOREQ =  9;  /* Echo Request */
+LCP.ECHOREP =  10; /* Echo Reply */
+LCP.DISCREQ =  11; /* Discard Request */
+LCP.CBCP_OPT = 6;  /* Use callback control protocol */
 
 // Prototypes
 LCP.prototype.protocol_id = 0xc021;
@@ -36,8 +41,6 @@ LCP.prototype.init = function(ppp) {
   this.fsm.init(ppp, this);
 }
 LCP.prototype.input = function(data) {
-  //printBytes("LCP", data);
-  
   this.fsm.input(data);
 }
 LCP.prototype.reqci = function(data, reject_if_disagree) {
@@ -91,5 +94,31 @@ LCP.prototype.open = function()
   }
   this.fsm.open();
   this.phase = LCP.LinkPhase.ESTABLISH;
+}
+
+LCP.prototype.up = function() {
+  console.log("LCP: up");
+  var ppp = this.ppp;
+  for (var p in ppp.protocols) {
+    if(ppp.protocols[p] != this && ppp.protocols[p].lowerup)
+      ppp.protocols[p].lowerup();
+  }
+  this.phase = LCP.LinkPhase.AUTHENTICATE;
+
+  // TODO, auth
+  
+  this.phase = LCP.LinkPhase.NETWORK;
+  for (var p in ppp.protocols) {
+    if(ppp.protocols[p].protocol_id < 0xC000 && ppp.protocols[p].open)
+      ppp.protocols[p].open();
+  }
+}
+
+LCP.prototype.sprotrej = function(data) {
+  /*
+   * Send back the protocol and the information field of the
+   * rejected packet.  We only get here if LCP is in the LS_OPENED state.
+   */
+  this.fsm.sdata(LCP.PROTREJ, ++this.fsm.id, data); 
 }
 
