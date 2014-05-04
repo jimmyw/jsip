@@ -68,7 +68,8 @@ FSM.prototype.sdata = function(code, id, fsm_data) {
       send_buf[j++] = fsm_data[i];
     }
   }
-  printBytes("FSM: sdata", send_buf.subarray(0, outlen + PPP.HDRLEN));
+  console.log("FSM: sent data code:", byId(FSM.Codes, code), "id:", id, "len:", send_buf.length);
+  //printBytes("FSM: sdata", send_buf.subarray(0, outlen + PPP.HDRLEN));
   this.ppp.send(send_buf.subarray(0, outlen + PPP.HDRLEN));
 }
 
@@ -129,21 +130,80 @@ FSM.prototype.GotConfRequest = function(id, fsm_data) {
   }
   console.log("FSM: GotConfRequest ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
 }
+FSM.prototype.GotConfACK = function(id, data) {
+  var old_state = this.state;
+  
+  if (id != this.reqid || this.seen_ack) {   /* Expected id? */
+    return; /* Nope, toss... */
+  }
+
+  if(!(this.proto.ackci? (this.proto.ackci)(data): (data.length == 0))) {
+    /* Ack is bad - ignore it */
+    console.log("FSM: received bad Ack (length ", data.length, ")\n");
+    return;
+  }
+  this.seen_ack = true;
+  
+  switch (this.state) {
+    case FSM.LinkStates.LS_CLOSED:
+    case FSM.LinkStates.LS_STOPPED:
+      this.sdata(TERMACK, id, null);
+      break;
+    
+    case FSM.LinkStates.LS_REQSENT:
+      this.state = FSM.LinkStates.LS_ACKRCVD;
+      this.retransmits = this.maxconfreqtransmits;
+      break;
+    
+    case FSM.LinkStates.LS_ACKRCVD:
+      /* Huh? an extra valid Ack? oh well... */
+      this.sconfreq(0);
+      this.state = FSM.LinkStates.LS_REQSENT;
+      break;
+    
+    case FSM.LinkStates.LS_ACKSENT:
+      this.state = FSM.LinkStates.LS_OPENED;
+      this.retransmits = this.maxconfreqtransmits;
+      if (this.proto.up) {
+        this.proto.up();  /* Inform upper layers */
+      }
+      break;
+    
+    case FSM.LinkStates.LS_OPENED:
+      /* Go down and restart negotiation */
+      if (this.proto.down) {
+        this.proto.down();  /* Inform upper layers */
+      }
+      this.sconfreq(0);    /* Send initial Configure-Request */
+      f.state = FSM.LinkStates.LS_REQSENT;
+      break;
+  }
+  console.log("FSM: GotConfACK ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+}
 
 FSM.prototype.input = function(data) {
+  
+  // Make sure link is up..
+  if(this.state == FSM.LinkStates.LS_INITIAL || this.state == FSM.LinkStates.LS_STARTING) {
+    console.log("FSM: input revd packet in state ", byId(FSM.LinkStates,this.state));
+    return;
+  }
 
   // Parse 4 byte header
   var code = data[0];
   var id = data[1];
   var len = ((data[2] << 8) | data[3]) - FSM.HEADERLEN;
   var fsm_data = data.subarray(FSM.HEADERLEN, FSM.HEADERLEN + len); 
-  console.log("FSM: Code:", code, "id:", id, "len:", len);
+  console.log("FSM: Received package Code:", byId(FSM.Codes, code), "id:", id, "len:", len);
   //printBytes("FSM: package", data);
   //printBytes("FSM: package data", fsm_data);
 
   switch (code) {
     case FSM.Codes.CONFREQ:
       this.GotConfRequest(id, fsm_data);
+      break;
+    case FSM.Codes.CONFACK:
+      this.GotConfACK(id, fsm_data);
       break;
     default:
       throw "Unhandeled code " + code;
@@ -201,7 +261,7 @@ FSM.prototype.lowerup = function() {
     break;
 
     default:
-      throw "Up event in state " + this.state;
+      console.log("Up event in state " + byId(FSM.LinkStates,this.state));
   }
   console.log("FSM: lowerup ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
 }
