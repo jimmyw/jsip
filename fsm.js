@@ -31,16 +31,8 @@ FSM.prototype.init = function(ppp, proto) {
 FSM.prototype.nakloops = 0;
 FSM.prototype.peer_mru = 0;
 FSM.prototype.sdata = function(code, id, fsm_data) {
-  var send_buf = new Uint8Array(this.peer_mru);
-  if (fsm_data.length > this.peer_mru) {
-    console.log("To big");
-    return;
-  }
-  var j = PPP.HDRLEN + FSM.HEADERLEN;
-  for (var i = 0; i < fsm_data.length; i++) {
-    send_buf[j++] = fsm_data[i];
-  }
-  var outlen = fsm_data.length + FSM.HEADERLEN;
+  var outlen = (fsm_data ? fsm_data.length : 0) + FSM.HEADERLEN;
+  var send_buf = new Uint8Array(PPP.HDRLEN + outlen);
   send_buf[0] = PPP.Pack.ALLSTATIONS;
   send_buf[1] = PPP.Pack.UI;
   send_buf[2] = this.proto.protocol_id >> 8;
@@ -49,9 +41,18 @@ FSM.prototype.sdata = function(code, id, fsm_data) {
   send_buf[5] = id;
   send_buf[6] = outlen >> 8;
   send_buf[7] = outlen & 0xff;
+  
+  // Append all fsm_data
+  if(fsm_data) {
+    var j = PPP.HDRLEN + FSM.HEADERLEN;
+    for (var i = 0; i < fsm_data.length; i++) {
+      send_buf[j++] = fsm_data[i];
+    }
+  }
   printBytes("FSM: sdata", send_buf.subarray(0, outlen + PPP.HDRLEN));
   this.ppp.send(send_buf.subarray(0, outlen + PPP.HDRLEN));
 }
+
 FSM.prototype.ConfRequest = function(id, fsm_data) {
   console.log("FSM: state: " + byId(FSM.LinkStates, this.state));
   printBytes("FSM: fsm_data", fsm_data);
@@ -59,7 +60,7 @@ FSM.prototype.ConfRequest = function(id, fsm_data) {
   switch(this.state) {
     case FSM.LinkStates.LS_CLOSED:
       /* Go away, we're closed */
-      //fsm_sdata(f, TERMACK, id, NULL, 0);
+      this.sdata(f, FSM.Codes.TERMACK, id, null);
       return;
     case FSM.LinkStates.LS_CLOSING:
     case FSM.LinkStates.LS_STOPPING:
