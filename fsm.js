@@ -31,7 +31,7 @@ FSM.OPT_SILENT  = 4; /* Wait for peer to speak first */
 FSM.prototype.state = FSM.LinkStates.LS_INITIAL;
 FSM.prototype.flags = 0;
 FSM.prototype.init = function(ppp, proto) {
-  console.log("FSM: init");
+  console.log("FSM " + proto.name + ": init");
   this.ppp = ppp;
   this.proto = proto;
   this.peer_mru = PPP.MRU;
@@ -68,7 +68,7 @@ FSM.prototype.sdata = function(code, id, fsm_data) {
       send_buf[j++] = fsm_data[i];
     }
   }
-  console.log("FSM: sent data code:", byId(FSM.Codes, code), "id:", id, "len:", send_buf.length);
+  console.log("FSM " + this.proto.name + ": sent data code:", byId(FSM.Codes, code), "id:", id, "len:", send_buf.length);
   //printBytes("FSM: sdata", send_buf.subarray(0, outlen + PPP.HDRLEN));
   this.ppp.send(send_buf.subarray(0, outlen + PPP.HDRLEN));
 }
@@ -128,7 +128,7 @@ FSM.prototype.GotConfRequest = function(id, fsm_data) {
       ++this.nakloops;
     }
   }
-  console.log("FSM: GotConfRequest ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+  console.log("FSM " + this.proto.name + ": GotConfRequest ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
 }
 FSM.prototype.GotConfACK = function(id, data) {
   var old_state = this.state;
@@ -139,7 +139,7 @@ FSM.prototype.GotConfACK = function(id, data) {
 
   if(!(this.proto.ackci? (this.proto.ackci)(data): (data.length == 0))) {
     /* Ack is bad - ignore it */
-    console.log("FSM: received bad Ack (length ", data.length, ")\n");
+    console.log("FSM " + this.proto.name + ": received bad Ack (length ", data.length, ")\n");
     return;
   }
   this.seen_ack = true;
@@ -178,14 +178,14 @@ FSM.prototype.GotConfACK = function(id, data) {
       f.state = FSM.LinkStates.LS_REQSENT;
       break;
   }
-  console.log("FSM: GotConfACK ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+  console.log("FSM " + this.proto.name + ": GotConfACK ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
 }
 
 FSM.prototype.input = function(data) {
   
   // Make sure link is up..
   if(this.state == FSM.LinkStates.LS_INITIAL || this.state == FSM.LinkStates.LS_STARTING) {
-    console.log("FSM: input revd packet in state ", byId(FSM.LinkStates,this.state));
+    console.log("FSM " + this.proto.name + ": input revd packet in state ", byId(FSM.LinkStates,this.state));
     return;
   }
 
@@ -194,7 +194,7 @@ FSM.prototype.input = function(data) {
   var id = data[1];
   var len = ((data[2] << 8) | data[3]) - FSM.HEADERLEN;
   var fsm_data = data.subarray(FSM.HEADERLEN, FSM.HEADERLEN + len); 
-  console.log("FSM: Received package Code:", byId(FSM.Codes, code), "id:", id, "len:", len);
+  console.log("FSM " + this.proto.name + ": Received package Code:", byId(FSM.Codes, code), "id:", id, "len:", len);
   //printBytes("FSM: package", data);
   //printBytes("FSM: package data", fsm_data);
 
@@ -263,7 +263,7 @@ FSM.prototype.lowerup = function() {
     default:
       console.log("Up event in state " + byId(FSM.LinkStates,this.state));
   }
-  console.log("FSM: lowerup ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+  console.log("FSM " + this.proto.name + ": lowerup ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
 }
 
 FSM.prototype.open = function() {
@@ -297,6 +297,6 @@ FSM.prototype.open = function() {
       }
       break;
   }
-  console.log("FSM: open ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+  console.log("FSM " + this.proto.name + ": open ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
 }
 
