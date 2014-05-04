@@ -1,9 +1,5 @@
 
-function Buffer() {}
-Buffer.prototype.buf = new Uint8Array(1500);
-Buffer.prototype.pos = 0;
-Buffer.prototype.pushByte = function(b) {this.buf[this.pos++] = b;}
-Buffer.prototype.get = function() { return this.buf.subarray(0, this.pos);}
+// Extend buffer object, with possibility to push bytes that may be escaped.
 Buffer.prototype.pushEscaped = function(b, accm) {
   if (accm && PPP.Escaped(b, accm)) {
     this.pushByte(PPP.Pack.ESCAPE);
@@ -35,8 +31,10 @@ PPP.DevStates = {
   PDDATA:6        /* Process data byte. */
 };
 PPP.ACCMMask = new Uint8Array([0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80]);
-PPP.Escaped = function(c, accm) {
-  return accm[c >> 3] & PPP.ACCMMask[c & 0x07]};
+PPP.Escaped = function(c, accm) {return accm[c >> 3] & PPP.ACCMMask[c & 0x07]};
+PPP.FCS = function(fcs, c) {return (fcs >> 8) ^ PPP.fcstab[(fcs ^ c) & 0xff]};
+PPP.INITFCS = 0xffff;
+PPP.GOODFCS = 0xf0b8;
 
 /* Prototypes */
 PPP.prototype.protocols = {};
@@ -65,9 +63,7 @@ PPP.prototype.protocol = 0;
 PPP.prototype.data = new Uint8Array(1500);
 PPP.prototype.data_pos = 0;
 PPP.prototype.inFCS = PPP.INITFCS;
-PPP.prototype.parse_ppp = function(buffer) {
-  
-  console.log("PPP: Got package len: ", buffer.length);
+PPP.prototype.recv = function(buffer) {
 
   for (var i=0; i < buffer.length; i++) {
     var curChar = buffer[i];
@@ -149,7 +145,6 @@ PPP.prototype.parse_ppp = function(buffer) {
       this.inFCS = PPP.FCS(this.inFCS, curChar);
     }
   }
-
 }
 
 PPP.prototype.send = function(data) {
@@ -168,14 +163,27 @@ PPP.prototype.send = function(data) {
 
   this.send_cb(buf.get());
 }
+
 PPP.prototype.registerProtocol = function(proto) {
   var inst = new proto(this);
   this.protocols[inst.protocol_id] = inst;
 }
 
-PPP.FCS = function(fcs, c) { return (fcs >> 8) ^ PPP.fcstab[(fcs ^ c) & 0xff]};
-PPP.INITFCS = 0xffff;
-PPP.GOODFCS = 0xf0b8;
+PPP.prototype.start = function() {
+  console.log("PPP: start");
+  for (var p in this.protocols) {
+    if(this.protocols[p].start)
+      this.protocols[p].start();
+  }
+}
+PPP.prototype.stop = function() {
+  console.log("PPP: stop");
+  for (var p in this.protocols) {
+    if(this.protocols[p].stop)
+      this.protocols[p].stop();
+  }
+}
+
 
 
 /* Big table used for checksums */

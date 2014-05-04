@@ -6,14 +6,20 @@ window.onload = function() {
   ppp.init();
 
   var ws = new WebSocket("ws://127.0.0.1:8080/websocket");
-  window.ws = ws;
   ws.binaryType = 'arraybuffer';
+  ppp.send_cb = function(data) {
+    printBytes("MAIN: sent", data);
+    ws.send(data);
+  }
+  ws.onclose = function() {
+    ppp.stop();
+  }
+  ws.onopen = function() {
+    ppp.start();
+  }
   ws.onmessage = function (msg) {
-    var buffer = new Uint8Array(msg.data);
-    ppp.send_cb = function(data) {
-      printBytes("MAIN", data);
-      ws.send(data);
-    }
-    ppp.parse_ppp(buffer);
+    var data = new Uint8Array(msg.data);
+    printBytes("MAIN: recv", data);
+    ppp.recv(data);
   };
 }
