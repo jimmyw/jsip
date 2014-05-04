@@ -147,7 +147,7 @@ FSM.prototype.GotConfACK = function(id, data) {
   switch (this.state) {
     case FSM.LinkStates.LS_CLOSED:
     case FSM.LinkStates.LS_STOPPED:
-      this.sdata(TERMACK, id, null);
+      this.sdata(FSM.Codes.TERMACK, id, null);
       break;
     
     case FSM.LinkStates.LS_REQSENT:
@@ -181,6 +181,98 @@ FSM.prototype.GotConfACK = function(id, data) {
   console.log("FSM " + this.proto.name + ": GotConfACK ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
 }
 
+FSM.prototype.GotConfREJ = function(code, id, data) {
+  var old_state = this.state;
+
+  if (id != this.reqid || this.seen_ack) { /* Expected id? */
+    return;        /* Nope, toss... */
+  }
+
+  var proc = (code == FSM.Codes.CONFNAK) ? this.proto.nakci: this.proto.rejci;
+  var ret;
+  if (!proc || !((ret = proc(data)))) {
+    /* Nak/reject is bad - ignore it */
+    console.log("FSM " + this.proto.name + ": received bad ", byId(FSM.Codes, code)," (length ", data.length, ")\n");
+    return;
+  }
+  this.seen_ack = true;
+
+  switch (this.state) {
+    case FSM.LinkStates.LS_CLOSED:
+    case FSM.LinkStates.LS_STOPPED:
+      this.sdata(FSM.Codes.TERMACK, id, null);
+      break;
+    
+    case FSM.LinkStates.LS_REQSENT:
+    case FSM.LinkStates.LS_ACKSENT:
+      /* They didn't agree to what we wanted - try another request */
+      if (ret < 0) {
+        this.state = FSM.LinkStates.LS_STOPPED;    /* kludge for stopping CCP */
+      } else {
+        this.sconfreq(0);    /* Send Configure-Request */
+      }
+      break;
+    
+    case FSM.LinkStates.LS_ACKRCVD:
+      /* Got a Nak/reject when we had already had an Ack?? oh well... */
+      this.sconfreq(0);
+      this.state = FSM.LinkStates.LS_REQSENT;
+      break;
+    
+    case FSM.LinkStates.LS_OPENED:
+      /* Go down and restart negotiation */
+      if (thos.proto.down) {
+        this.proto.down();  /* Inform upper layers */
+      }
+      this.sconfreq(0);    /* Send initial Configure-Request */
+      this.state = FSM.LinkStates.LS_REQSENT;
+      break;
+  }
+  console.log("FSM " + this.proto.name + ": GotConfREJ ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+}
+
+FSM.prototype.GotCodeREJ = function(data) {
+  var old_state = this.state;
+  if (data.length < FSM.HEADERLEN) {
+    throw "Rcvd short Code-Reject packet!";
+  }
+  var code = data[0];
+  var id = data[1];
+  console.log("Rcvd Code-Reject for code:", byId(FSM.Codes, code) , " id:", id);
+  
+  if(this.state == FSM.LinkStates.LS_ACKRCVD) {
+    this.state = FSM.LinkStates.LS_REQSENT;
+  }
+  console.log("FSM " + this.proto.name + ": GotCodeREJ ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+}
+
+FSM.prototype.GotTremReq = function(id, data) {
+  var old_state = this.state;
+  switch (this.state) {
+    case FSM.LinkStates.LS_ACKRCVD:
+    case FSM.LinkStates.LS_ACKSENT:
+      this.state = FSM.LinkStates.LS_REQSENT;    /* Start over but keep trying */
+      break;
+
+    case FSM.LinkStates.LS_OPENED:
+      if (data.length > 0) {
+        console.log("FSM: terminated by peer", data[0]);
+      } else {
+        console.log("FSM: terminated by peer");
+      }
+      if (this.proto.down) {
+        this.proto.down();  /* Inform upper layers */
+      }
+      this.retransmits = 0;
+      this.state = FSM.LinkStates.LS_STOPPING;
+      break;
+  }
+
+  this.sdata(FSM.Codes.TERMACK, id, null);
+  console.log("FSM " + this.proto.name + ": GotTremReq ", byId(FSM.LinkStates,old_state), "-->", byId(FSM.LinkStates,this.state));
+}
+
+
 FSM.prototype.input = function(data) {
   
   // Make sure link is up..
@@ -205,8 +297,17 @@ FSM.prototype.input = function(data) {
     case FSM.Codes.CONFACK:
       this.GotConfACK(id, fsm_data);
       break;
+    case FSM.Codes.CONFNAK:
+    case FSM.Codes.CONFREJ:
+      this.GotConfREJ(code, id, fsm_data);
+      break;
+    case FSM.Codes.CODEREJ:
+      this.GotCodeREJ(fsm_data);
+      break;
+    case FSM.Codes.TERMREQ:
+      this.GotTremReq(id, fsm_data);
     default:
-      throw "Unhandeled code " + code;
+      throw "Unhandeled code " + byId(FSM.Codes, code);
   }
 }
 
@@ -219,15 +320,15 @@ FSM.prototype.sconfreq = function(retransmit)
     }
     this.nakloops = 0;
   }
-  
+
   if(!retransmit) {
     /* New request - reset retransmission counter, use new ID */
     this.retransmits = this.maxconfreqtransmits;
     this.reqid = ++this.id;
   }
-  
+
   this.seen_ack = false;
-  
+
   /*
    * Make up the request packet
    */
@@ -238,9 +339,10 @@ FSM.prototype.sconfreq = function(retransmit)
 
   /* send the request to our peer */
   this.sdata(FSM.Codes.CONFREQ, this.reqid, out_data);
-  
+
   /* start the retransmit timer */
   --this.retransmits;
+  console.log("FSM " + this.proto.name + ": sconfreq len:" + (out_data ? out_data.length : 0));
 }
 
 FSM.prototype.lowerup = function() {

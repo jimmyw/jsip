@@ -90,7 +90,7 @@ PPP.prototype.recv = function(buffer) {
               this.proto.input(this.data.subarray(0, this.data_pos-2));
           } else {
             this.sprotrej(this.protocol);
-            console.log("Unknown protocol ", this.protocol);
+            console.log("Unknown protocol ", this.protocol.toString(16));
           }
           this.data_pos = 0;
         }
