@@ -48,9 +48,24 @@ func hexdump(d []byte) string {
 
 func (self *Session) startProc(closing chan string) {
 	var err error
-	self.cmd = exec.Command("/usr/sbin/pppd", "notty", "lcp-echo-interval", "10", "lcp-echo-failure", "2", "nodetach", "nomagic", "novj", "default-asyncmap", "nodeflate", "noaccomp", "nobsdcomp", "nopcomp", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr", fmt.Sprintf("10.0.0.1:%s", self.ip))
-	//self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "nomagic", "novj", "asyncmap", "0x000A0000", "nodeflate", "noaccomp", "nobsdcomp", "nopcomp", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
-	//self.cmd = exec.Command("/usr/sbin/pppd", "notty", "nodetach", "local", "nodefaultroute", "debug", "logfile", "/dev/stderr")
+	self.cmd = exec.Command(
+		"/usr/sbin/pppd",
+		"notty",
+		"lcp-echo-interval", "10",
+		"lcp-echo-failure", "2",
+		"nodetach",
+		"nomagic",
+		"novj",
+		"default-asyncmap",
+		"nodeflate",
+		"noaccomp",
+		"nobsdcomp",
+		"nopcomp",
+		"local",
+		"nodefaultroute",
+		"debug",
+		"logfile", "/dev/stderr",
+		fmt.Sprintf("10.0.0.1:%s", self.ip))
 	if self.stdout, err = self.cmd.StdoutPipe(); err != nil {
 		log.Fatal("StdoutPipe error: ", err)
 	}

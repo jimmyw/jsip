@@ -66,6 +66,7 @@ IPCP.prototype.nakci = function(data) {
     switch(citype) {
       case IPCP.CI.ADDR:
         console.log("Got NAK ip-adress: ", cidata[0], ".", cidata[1], ".", cidata[2], ".", cidata[3]);
+        document.write("<h1>Got ip-adress: " + cidata[0], "." + cidata[1], "." + cidata[2] + "." + cidata[3]+"</h1>");
         this.local_addr[0] = cidata[0];
         this.local_addr[1] = cidata[1];
         this.local_addr[2] = cidata[2];
