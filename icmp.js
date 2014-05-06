@@ -35,26 +35,32 @@ ICMP.prototype.dump = function(data) {
   }
 }
 ICMP.prototype.on_data = function(data) {
+  if (IPV4.chksum(data.subarray(20)) != 0)
+    throw "Imcp input checksum error";
+
   switch(data[20]) {
     case ICMP.PROTO.ECHO: /* PING */
-      var reply = new Uint8Array(data);
+      var reply = new Uint8Array(data.length);
+      reply.set(data);
       byteSwap(reply, 12, reply, 16, 4); // switch places in ipaddr
       reply[8] = IPV4.DEFAULT_TTL; // Reset TTL
       reply[10] = 0;
       reply[11] = 0;
-      reply[20] = ICMP.PROTO.ER; // Change to a echo reply
-      // Recalculate imcp checksum
-      var isum = data[22] << 8 & data[23];
-      if (isum >= IPV4.htons(0xffff - (ICMP.PROTO.ECHO << 8))) {
-        isum += IPV4.htons(ICMP.PROTO.ECHO << 8) + 1;
-      } else {
-        isum += IPV4.htons(ICMP.PROTO.ECHO << 8);
-      }
-      reply[22] = isum >> 8;
-      reply[23] = isum & 0xff;
       var chksum = IPV4.chksum(reply.subarray(0, IPV4.HLEN));
       reply[10] = chksum >> 8;
       reply[11] = chksum & 0xff;
+
+
+      reply[20] = ICMP.PROTO.ER; // Change to a echo reply
+      reply[22] = 0;
+      reply[23] = 0;
+      var isum = IPV4.chksum(reply.subarray(20));
+      reply[22] = isum >> 8;
+      reply[23] = isum & 0xff;
+  
+      console.log(IPV4.chksum(reply.subarray(20)))
+      if (IPV4.chksum(reply.subarray(20)) != 0)
+        throw "Imcp output checksum error";
       this.ip.ip_output(reply);
       break;
   }

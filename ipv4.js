@@ -18,12 +18,11 @@ IPV4.htonl = function(n) {
 };
 IPV4.chksum = function(data) {
   var acc = 0;
-  var i;
-  for (i=0; i < data.length; i+=2) {
-    acc += data[i] << 8 | data[i+1];
-  }
-  if (i < data.length) {
-    acc += data[i] << 8;
+  for (var i=0; i < data.length; i++) {
+    if(i % 2)
+      acc += data[i];
+    else
+      acc += data[i] << 8;
   }
 
   /* add deferred carry bits */
@@ -31,7 +30,7 @@ IPV4.chksum = function(data) {
   if ((acc & 0xffff0000) != 0) {
     acc = (acc >> 16) + (acc & 0x0000ffff);
   }
-  return IPV4.ntohs(acc);
+  return ((~IPV4.ntohs(acc))>>>0) & 0xffff;
 }
 
 IPV4.prototype.protocol_id = 0x04;
@@ -59,12 +58,14 @@ IPV4.prototype.dump = function(data) {
   console.log("IP SRC", data[12], ".", data[13], ".", data[14], ".", data[15]);
   console.log("IP DST", data[16], ".", data[17], ".", data[18], ".", data[19]);
   var protocol = data[9];
-  if (protocol in this.protocols) 
-    this.protocols[protocol].dump(data); 
+  if (protocol in this.protocols)
+    this.protocols[protocol].dump(data);
 };
 IPV4.prototype.on_data = function(data) {
+  if (IPV4.chksum(data.subarray(0,IPV4.HLEN)) != 0)
+    throw "Invalid package checksum";
   var protocol = data[9];
-  if (protocol in this.protocols) 
-    this.protocols[protocol].on_data(data); 
+  if (protocol in this.protocols)
+    this.protocols[protocol].on_data(data);
 };
 
