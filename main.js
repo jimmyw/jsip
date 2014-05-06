@@ -2,13 +2,11 @@
 
 window.onload = function() {
   var ppp = new PPP();
-  ppp.registerProtocol(LCP);
-  ppp.registerProtocol(IPCP);
   ppp.init();
 
   var ip = new IP();
   ip.registerDevice(ppp);
-  ip.registerProtocol(IPV4);
+  ip.init();
 
   var ws = new WebSocket("ws://127.0.0.1:8080/websocket");
   ws.binaryType = 'arraybuffer';

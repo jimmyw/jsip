@@ -14,6 +14,17 @@ function byId(e, k) {
   return -1;
 }
 
+function byteCopy(src, soff, dst, doff, len) {
+  for(var i = 0; i < len; i++)
+    dst[doff + i] = src[soff + i];
+}
+function byteSwap(a, ao, b, bo, len) {
+  for(var i = 0; i < len; i++) {
+    var tmp = a[ao + i];
+    a[ao + i] = b[bo + i];
+    b[bo + i] = tmp;
+  }
+}
 
 function printBytes(title, buffer) {
   var s = title + ": ";

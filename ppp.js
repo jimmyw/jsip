@@ -21,6 +21,7 @@ PPP.Pack = {
 };
 PPP.MRU = 1500;
 PPP.HDRLEN = 4;
+PPP.MAXIDLEFLAG = 100;
 PPP.DevStates = {
   PDIDLE: 0,      /* Idle state - waiting. */
   PDSTART: 1,     /* Process start flag. */
@@ -50,11 +51,14 @@ PPP.Escaped = function(c, accm) {return accm[c >> 3] & PPP.ACCMMask[c & 0x07]};
 PPP.FCS = function(fcs, c) {return (fcs >> 8) ^ PPP.fcstab[(fcs ^ c) & 0xff]};
 PPP.INITFCS = 0xffff;
 PPP.GOODFCS = 0xf0b8;
+PPP.time = function() { return new Date().getTime(); };
 
 /* Prototypes */
 PPP.prototype.protocols = {};
 PPP.prototype.init = function() {
   console.log("PPP: init");
+  this.lcp = this.registerProtocol(LCP);
+  this.ipcp = this.registerProtocol(IPCP);
 
   // Default always escapae 0x7e, 0x7d
   this.inACCM[15] = 0x60;
@@ -95,6 +99,9 @@ PPP.prototype.delegate = function(protocol, data) {
   }
   return false;
 }
+PPP.prototype.lastXMit = 0;
+PPP.prototype.accomp = false;
+PPP.prototype.pcomp = false;
 PPP.prototype.recv = function(buffer) {
 
   for (var i=0; i < buffer.length; i++) {
@@ -185,16 +192,62 @@ PPP.prototype.sprotrej = function(protocol){
   }
 }
 
+PPP.prototype.ip_output = function(data) {
+
+  /* Check that the link is up. */
+  if (this.lcp.phase == LCP.LinkPhase.DEAD) {
+    throw "link not up\n";
+  }
+  
+  var buf = new Buffer();
+  var fcsOut = PPP.INITFCS;
+
+  /* Build the PPP header. */
+  if ((PPP.time() - this.lastXMit) >= PPP.MAXIDLEFLAG) {
+    buf.pushEscaped(PPP.Pack.FLAG, null);
+  }
+  this.lastXMit = PPP.time();
+
+  if (!this.accomp) {
+    fcsOut = PPP.FCS(fcsOut, PPP.Pack.ALLSTATIONS);
+    buf.pushEscaped(PPP.Pack.ALLSTATIONS, this.outACCM);
+    fcsOut = PPP.FCS(fcsOut, PPP.Pack.UI);
+    buf.pushEscaped(PPP.Pack.UI, this.outACCM);
+  }
+  if (!this.pcomp) {
+    fcsOut = PPP.FCS(fcsOut, (PPP.Packet.IP >> 8) & 0xFF);
+    buf.pushEscaped((PPP.Packet.IP >> 8) & 0xFF, this.outACCM);
+  }
+  fcsOut = PPP.FCS(fcsOut, PPP.Packet.IP & 0xFF);
+  buf.pushEscaped(PPP.Packet.IP & 0xFF, this.outACCM);
+
+  // Add data to packet..
+  for (var i = 0; i < data.length; i++) {
+    buf.pushEscaped(data[i], this.outACCM);
+    fcsOut = PPP.FCS(fcsOut, data[i]);
+  }
+
+  /* Add FCS and trailing flag. */
+  buf.pushEscaped(~fcsOut & 0xFF, this.outACCM);
+  buf.pushEscaped((~fcsOut >> 8) & 0xFF, this.outACCM);
+  buf.pushEscaped(PPP.Pack.FLAG, null);
+
+  this.send_cb(buf.get());
+};
 PPP.prototype.send = function(data) {
   var buf = new Buffer();
   var fcsOut = PPP.INITFCS;
-  buf.pushEscaped(PPP.Pack.FLAG, null);
+  if ((PPP.time() - this.lastXMit) >= PPP.MAXIDLEFLAG) {
+    buf.pushEscaped(PPP.Pack.FLAG, null);
+  }
+  this.lastXMit = PPP.time();
 
   for (var i = 0; i < data.length; i++) {
     buf.pushEscaped(data[i], this.outACCM);
     fcsOut = PPP.FCS(fcsOut, data[i]);
   }
 
+  /* Add FCS and trailing flag. */
   buf.pushEscaped(~fcsOut & 0xFF, this.outACCM);
   buf.pushEscaped((~fcsOut >> 8) & 0xFF, this.outACCM);
   buf.pushEscaped(PPP.Pack.FLAG, null);
@@ -205,6 +258,7 @@ PPP.prototype.send = function(data) {
 PPP.prototype.registerProtocol = function(proto) {
   var inst = new proto(this);
   this.protocols[inst.protocol_id] = inst;
+  return inst;
 }
 
 PPP.prototype.start = function() {
