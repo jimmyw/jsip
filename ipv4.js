@@ -48,7 +48,7 @@ IPV4.prototype.init = function(ip) {
       this.protocols[p].init(ip, this);
   }
 };
-IPV4.prototype.on_data = function(data) {
+IPV4.prototype.dump = function(data) {
   console.log("IP Header Len", data[0] & 0x1111);
   console.log("IP TOS", data[1]);
   console.log("IP LEN", (data[2] << 8) | data[3]);
@@ -58,6 +58,11 @@ IPV4.prototype.on_data = function(data) {
   console.log("IP CHECKSUM", (data[10] << 8) | data[11]);
   console.log("IP SRC", data[12], ".", data[13], ".", data[14], ".", data[15]);
   console.log("IP DST", data[16], ".", data[17], ".", data[18], ".", data[19]);
+  var protocol = data[9];
+  if (protocol in this.protocols) 
+    this.protocols[protocol].dump(data); 
+};
+IPV4.prototype.on_data = function(data) {
   var protocol = data[9];
   if (protocol in this.protocols) 
     this.protocols[protocol].on_data(data); 

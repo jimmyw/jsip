@@ -51,7 +51,7 @@ func (self *Session) startProc(closing chan string) {
 	self.cmd = exec.Command(
 		"/usr/sbin/pppd",
 		"notty",
-		"lcp-echo-interval", "10",
+		"lcp-echo-interval", "60",
 		"lcp-echo-failure", "2",
 		"nodetach",
 		"nomagic",

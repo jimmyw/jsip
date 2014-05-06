@@ -1,10 +1,15 @@
 function IP() {};
 IP.prototype.devices = [];
 IP.prototype.protocols = {};
-IP.prototype.on_data = function(data) {
+IP.prototype.dump = function(data) {
   console.log("IP PACKET DATA len:", data.length);
+  console.log("IP Version", data[0] >> 4);
+  if ((data[0] >> 4) in this.protocols) 
+    this.protocols[data[0] >> 4].dump(data); 
+}
+IP.prototype.on_data = function(data) {
+  this.dump(data);
   var ip_protocol = data[0] >> 4;
-  console.log("IP Version", ip_protocol);
   if (ip_protocol in this.protocols) 
     this.protocols[data[0] >> 4].on_data(data); 
 };
@@ -25,6 +30,7 @@ IP.prototype.on_down = function(ip_addr) {
 
 };
 IP.prototype.ip_output = function(data) {
+  this.dump(data);
   for (var d in this.devices) {
     this.devices[d].ip_output(data);
   }
