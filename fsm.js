@@ -137,7 +137,7 @@ FSM.prototype.GotConfACK = function(id, data) {
     return; /* Nope, toss... */
   }
 
-  if(!(this.proto.ackci? (this.proto.ackci)(data): (data.length == 0))) {
+  if(!(this.proto.ackci ? this.proto.ackci(data) : (data.length == 0))) {
     /* Ack is bad - ignore it */
     console.log("FSM " + this.proto.name + ": received bad Ack (length ", data.length, ")\n");
     return;
@@ -348,7 +348,7 @@ FSM.prototype.sconfreq = function(retransmit)
 
   /* start the retransmit timer */
   --this.retransmits;
-  console.log("FSM " + this.proto.name + ": sconfreq len:" + (out_data ? out_data.length : 0));
+  //console.log("FSM " + this.proto.name + ": sconfreq len:" + (out_data ? out_data.length : 0));
 }
 
 FSM.prototype.lowerup = function() {

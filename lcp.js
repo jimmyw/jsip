@@ -96,6 +96,11 @@ LCP.prototype.open = function()
   this.phase = LCP.LinkPhase.ESTABLISH;
 }
 
+LCP.prototype.ackci = function(data) {
+  console.log("LCP: ackci return true");
+  return true;
+}
+
 LCP.prototype.up = function() {
   console.log("LCP: up");
   var ppp = this.ppp;

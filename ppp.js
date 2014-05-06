@@ -82,7 +82,7 @@ PPP.prototype.inFCS = PPP.INITFCS;
 PPP.prototype.delegate = function(protocol, data) {
   switch (protocol) {
     case PPP.Packet.IP:
-      this.on_ip(data);
+      this.on_data(data);
       return true;
     default:
       if(protocol in this.protocols) {

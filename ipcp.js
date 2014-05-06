@@ -33,6 +33,37 @@ IPCP.prototype.open = function() {
   this.fsm.open();
 }
 
+IPCP.prototype.up = function() {
+  console.log("IPCP: up");
+  this.ppp.on_up(this.local_addr);
+}
+
+IPCP.prototype.down = function() {
+  console.log("IPCP: down");
+  this.ppp.on_down(this.local_addr);
+}
+
+IPCP.prototype.ackci = function(data) {
+  var i = 0;
+  while(i < data.length) {
+    var citype = data[i];
+    var cilen = data[i+1];
+    var cidata = data.subarray(i + 2, i + cilen);
+    console.log("IPCP ACK: citype: ", byId(IPCP.CI, citype), "cilen", cilen);
+    switch(citype) {
+      case IPCP.CI.ADDR:
+        document.write("<h1>ip-adress: " + cidata[0], "." + cidata[1], "." + cidata[2] + "." + cidata[3]+"</h1>");
+        if(this.local_addr[0] != cidata[0] || this.local_addr[1] != cidata[1] || 
+        this.local_addr[2] != cidata[2] || this.local_addr[3] != cidata[3])
+          return false;
+        console.log("Got ACK ip-adress: ", cidata[0], ".", cidata[1], ".", cidata[2], ".", cidata[3]);
+        break;
+    }
+    i += cilen;
+  }
+  return true;
+}
+
 IPCP.prototype.addci = function(data) {
   var data = new Uint8Array(6);
   data[0] = IPCP.CI.ADDR;
@@ -50,7 +81,7 @@ IPCP.prototype.rejci = function(data) {
     var citype = data[i];
     var cilen = data[i+1];
     var cidata = data.subarray(i + 2, i + cilen);
-    console.log("LCP REJ: citype: ", byId(IPCP.CI, citype), "cilen", cilen);
+    console.log("IPCP REJ: citype: ", byId(IPCP.CI, citype), "cilen", cilen);
     i += cilen;
   }
   return true;
@@ -62,11 +93,10 @@ IPCP.prototype.nakci = function(data) {
     var citype = data[i];
     var cilen = data[i+1];
     var cidata = data.subarray(i + 2, i + cilen);
-    console.log("LCP NAK: citype: ", byId(IPCP.CI, citype), "cilen", cilen);
+    console.log("IPCP NAK: citype: ", byId(IPCP.CI, citype), "cilen", cilen);
     switch(citype) {
       case IPCP.CI.ADDR:
         console.log("Got NAK ip-adress: ", cidata[0], ".", cidata[1], ".", cidata[2], ".", cidata[3]);
-        document.write("<h1>Got ip-adress: " + cidata[0], "." + cidata[1], "." + cidata[2] + "." + cidata[3]+"</h1>");
         this.local_addr[0] = cidata[0];
         this.local_addr[1] = cidata[1];
         this.local_addr[2] = cidata[2];
@@ -84,7 +114,7 @@ IPCP.prototype.reqci = function(data, reject_if_disagree) {
     var citype = data[i];
     var cilen = data[i+1];
     var cidata = data.subarray(i + 2, i + cilen);
-    console.log("LCP: citype: ", byId(IPCP.CI, citype), "cilen", cilen);
+    console.log("IPCP: citype: ", byId(IPCP.CI, citype), "cilen", cilen);
     switch(citype) {
       case IPCP.CI.ADDRS: /* IP Addresses */
         break;
