@@ -113,7 +113,7 @@ func (self *Session) writeLoop(closing chan string) {
 			log.Fatal("StdOut read error: ", err)
 		}
 		if l > 0 {
-			log.Printf("Read byte from pppd '%v'\n", hexdump(b[0:l]))
+			//log.Printf("Read byte from pppd '%v'\n", hexdump(b[0:l]))
 			websocket.Message.Send(self.ws, b[0:l])
 		}
 	}
@@ -124,7 +124,7 @@ func (self *Session) readLoop(closing chan string) {
 	var data []byte
 	var err error
 	for err = websocket.Message.Receive(self.ws, &data); err == nil; err = websocket.Message.Receive(self.ws, &data) {
-		log.Printf("Read byte from ws   '%v'\n", hexdump(data))
+		//log.Printf("Read byte from ws   '%v'\n", hexdump(data))
 		self.stdin.Write(data)
 	}
 	if err == io.EOF {

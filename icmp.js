@@ -47,18 +47,17 @@ ICMP.prototype.on_data = function(data) {
       reply[10] = 0;
       reply[11] = 0;
       var chksum = IPV4.chksum(reply.subarray(0, IPV4.HLEN));
-      reply[10] = chksum >> 8;
-      reply[11] = chksum & 0xff;
+      reply[10] = chksum & 0xff;
+      reply[11] = chksum >> 8;
 
 
       reply[20] = ICMP.PROTO.ER; // Change to a echo reply
       reply[22] = 0;
       reply[23] = 0;
       var isum = IPV4.chksum(reply.subarray(20));
-      reply[22] = isum >> 8;
-      reply[23] = isum & 0xff;
+      reply[22] = isum & 0xff;
+      reply[23] = isum >> 8;
   
-      console.log(IPV4.chksum(reply.subarray(20)))
       if (IPV4.chksum(reply.subarray(20)) != 0)
         throw "Imcp output checksum error";
       this.ip.ip_output(reply);
