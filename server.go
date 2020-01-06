@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"code.google.com/p/go.net/websocket"
 	"fmt"
+	"golang.org/x/net/websocket"
 	"io"
 	"log"
 	"net"
@@ -46,8 +46,9 @@ func hexdump(d []byte) string {
 	return ret
 }
 
-func (self *Session) startProc(closing chan string) {
+func (self *Session) startProc(open chan string, closing chan string) {
 	var err error
+	log.Printf("startProc")
 	self.cmd = exec.Command(
 		"/usr/sbin/pppd",
 		"notty",
@@ -95,16 +96,24 @@ func (self *Session) startProc(closing chan string) {
 	if err = self.cmd.Start(); err != nil {
 		log.Fatal("Start error: ", err)
 	}
+	open <- "StartProc"
 
 	if err := self.cmd.Wait(); err != nil {
 		log.Printf("readLoop() cmdWait erro: %s", err)
 	}
 	closing <- "StartProc"
+	log.Printf("StartProc leave")
 }
 
 func (self *Session) writeLoop(closing chan string) {
+	log.Printf("writeLoop")
 	for {
 		b := make([]byte, 1500)
+		if self.stdout == nil {
+			log.Fatal("stdout is nil")
+			time.Sleep(1 * time.Second)
+			continue
+		}
 		l, err := self.stdout.Read(b)
 		if err == io.EOF {
 			break
@@ -118,35 +127,42 @@ func (self *Session) writeLoop(closing chan string) {
 		}
 	}
 	closing <- "WriteLoop"
+	log.Printf("writeLoop leave")
 }
 
 func (self *Session) readLoop(closing chan string) {
+	log.Printf("readLoop")
 	var data []byte
 	var err error
 	for err = websocket.Message.Receive(self.ws, &data); err == nil; err = websocket.Message.Receive(self.ws, &data) {
-		//log.Printf("Read byte from ws   '%v'\n", hexdump(data))
+		log.Printf("Read byte from ws   '%v'\n", hexdump(data))
 		self.stdin.Write(data)
 	}
 	if err == io.EOF {
+		log.Printf("EOF")
 		return
 	}
 	if err != nil {
 		log.Printf("Recive error readLoop(): %s", err)
 	}
 	closing <- "ReadLoop"
-
+	log.Printf("readLoop leave")
 }
 func (self *Session) handleWS(ws *websocket.Conn) {
 	self.ws = ws
+	opening := make(chan string)
 	closing := make(chan string)
-	go self.startProc(closing)
-	go self.readLoop(closing)
-	go self.writeLoop(closing)
+	go self.startProc(opening, closing)
 	for {
 		select {
 		case closer := <-closing:
 			log.Printf("Closed by: %v\n", closer)
 			return
+		case opener := <-opening:
+			log.Printf("Opened by: %v\n", opener)
+			go self.readLoop(closing)
+			go self.writeLoop(closing)
+			continue
 		}
 	}
 	self.stdin.Close()
