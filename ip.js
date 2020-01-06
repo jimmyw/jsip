@@ -8,7 +8,7 @@ IP.prototype.dump = function(data) {
     this.protocols[data[0] >> 4].dump(data); 
 }
 IP.prototype.on_data = function(data) {
-  //this.dump(data);
+  this.dump(data);
   var ip_protocol = data[0] >> 4;
   if (ip_protocol in this.protocols) 
     this.protocols[data[0] >> 4].on_data(data); 

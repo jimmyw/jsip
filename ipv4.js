@@ -41,6 +41,7 @@ IPV4.prototype.registerProtocol = function(proto) {
 };
 IPV4.prototype.init = function(ip) {
   this.registerProtocol(ICMP);
+  this.registerProtocol(TCP);
   this.registerProtocol(UDP);
   for (var p in this.protocols) {
     if (this.protocols[p].init)
